@@ -1,0 +1,2338 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R2 云盘 · Workspace</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/material-icons@1.13.12/iconfont/round.css" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: '#6366F1',
+        primaryDark: '#4F46E5',
+        primaryLight: '#EEF2FF',
+        accent: '#06B6D4',
+        success: '#10B981',
+        danger: '#EF4444',
+        warn: '#F59E0B',
+        darkBg: '#080C14',
+        darkSurface: '#0F1629',
+        darkCard: '#141E35',
+        darkBorder: '#1E2D4A',
+      },
+      backdropBlur: { xs: '2px' },
+      animation: {
+        'float': 'float 6s ease-in-out infinite',
+        'pulse-slow': 'pulse 3s ease-in-out infinite',
+        'glow': 'glow 2s ease-in-out infinite alternate',
+        'slide-up': 'slideUp 0.3s cubic-bezier(0.16,1,0.3,1)',
+        'slide-in-right': 'slideInRight 0.3s cubic-bezier(0.16,1,0.3,1)',
+        'fade-in': 'fadeIn 0.2s ease-out',
+        'shimmer': 'shimmer 1.5s infinite',
+      },
+      keyframes: {
+        float: { '0%,100%': { transform: 'translateY(0px)' }, '50%': { transform: 'translateY(-8px)' } },
+        glow: { '0%': { boxShadow: '0 0 5px #6366F140' }, '100%': { boxShadow: '0 0 20px #6366F180, 0 0 40px #6366F130' } },
+        slideUp: { from: { opacity: '0', transform: 'translateY(16px) scale(0.97)' }, to: { opacity: '1', transform: 'translateY(0) scale(1)' } },
+        slideInRight: { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },
+        fadeIn: { from: { opacity: '0', transform: 'scale(0.95)' }, to: { opacity: '1', transform: 'scale(1)' } },
+        shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
+      }
+    }
+  }
+}
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #6366F140; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #6366F180; }
+  .dark ::-webkit-scrollbar-thumb { background: #1E2D4A; }
+
+  /* ── Glass Morphism ── */
+  .glass {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.5);
+  }
+  .dark .glass {
+    background: rgba(8,12,20,0.75);
+    border-color: rgba(30,45,74,0.8);
+  }
+  .glass-card {
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  .dark .glass-card {
+    background: rgba(15,22,41,0.7);
+    border-color: rgba(30,45,74,0.6);
+  }
+
+  /* ── Neon Glow Effects ── */
+  .neon-border {
+    box-shadow: 0 0 0 1px #6366F130, 0 0 20px #6366F115;
+  }
+  .neon-border:hover {
+    box-shadow: 0 0 0 1px #6366F160, 0 0 30px #6366F125;
+  }
+  .neon-text {
+    background: linear-gradient(135deg, #6366F1, #06B6D4, #6366F1);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 4s ease infinite;
+  }
+  @keyframes gradientShift {
+    0%,100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  /* ── Header ── */
+  header {
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(24px) saturate(200%);
+    border-bottom: 1px solid rgba(99,102,241,0.08);
+    box-shadow: 0 1px 0 rgba(99,102,241,0.05), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  .dark header {
+    background: rgba(8,12,20,0.9);
+    border-bottom-color: rgba(30,45,74,0.8);
+    box-shadow: 0 1px 0 rgba(99,102,241,0.1), 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    z-index: 30;
+  }
+  @media (max-width: 767px) {
+    aside {
+      position: fixed;
+      top: 64px; left: 0; bottom: 0;
+      width: 280px;
+      transform: translateX(-100%);
+      box-shadow: 4px 0 32px rgba(0,0,0,0.15);
+    }
+    aside.open { transform: translateX(0); }
+  }
+
+  /* ── Upload Task Panel ── */
+  #uploadTaskCenter {
+    position: fixed;
+    right: 0; top: 0; bottom: 0;
+    width: 340px;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(24px);
+    border-left: 1px solid rgba(99,102,241,0.1);
+    transform: translateX(110%);
+    transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -8px 0 48px rgba(99,102,241,0.08);
+  }
+  .dark #uploadTaskCenter {
+    background: rgba(8,12,20,0.95);
+    border-left-color: rgba(30,45,74,0.9);
+    box-shadow: -8px 0 48px rgba(0,0,0,0.5);
+  }
+  #uploadTaskCenter.show { transform: translateX(0); }
+  @media (max-width: 767px) {
+    #uploadTaskCenter { width: 100%; }
+  }
+
+  /* ── Context Menu ── */
+  #contextMenu {
+    position: fixed;
+    z-index: 1000;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px) saturate(200%);
+    border: 1px solid rgba(99,102,241,0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(99,102,241,0.08);
+    border-radius: 14px;
+    padding: 6px;
+    min-width: 192px;
+    display: none;
+    overflow: hidden;
+  }
+  .dark #contextMenu {
+    background: rgba(15,22,41,0.95);
+    border-color: rgba(30,45,74,0.9);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(99,102,241,0.15);
+  }
+  #contextMenu.show { display: block; animation: fadeIn 0.15s ease-out; }
+  .menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: #1e293b;
+    transition: all 0.12s;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  .dark .menu-item { color: #cbd5e1; }
+  .menu-item:hover { background: rgba(99,102,241,0.08); color: #6366F1; }
+  .dark .menu-item:hover { background: rgba(99,102,241,0.12); color: #818CF8; }
+  .menu-item .material-icons-round { font-size: 16px; }
+  .menu-divider { height: 1px; background: rgba(99,102,241,0.08); margin: 4px 8px; }
+  .dark .menu-divider { background: rgba(30,45,74,0.8); }
+
+  /* ── Toolbar Buttons ── */
+  .toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: rgba(99,102,241,0.06);
+    color: #4F46E5;
+    border: 1px solid rgba(99,102,241,0.12);
+    cursor: pointer;
+    transition: all 0.18s cubic-bezier(0.16,1,0.3,1);
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+  }
+  .dark .toolbar-btn {
+    background: rgba(99,102,241,0.1);
+    color: #818CF8;
+    border-color: rgba(99,102,241,0.2);
+  }
+  .toolbar-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent, rgba(99,102,241,0.08));
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+  .toolbar-btn:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.3); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.15); }
+  .toolbar-btn:hover::before { opacity: 1; }
+  .toolbar-btn:active { transform: translateY(0); }
+  .toolbar-btn.btn-danger { color: #EF4444; background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.12); }
+  .toolbar-btn.btn-danger:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.25); box-shadow: 0 4px 12px rgba(239,68,68,0.12); }
+  .toolbar-btn.btn-success { color: #10B981; background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.12); }
+  .toolbar-btn.btn-success:hover { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.25); box-shadow: 0 4px 12px rgba(16,185,129,0.12); }
+  .toolbar-btn.btn-primary { color: #fff; background: linear-gradient(135deg, #6366F1, #4F46E5); border-color: transparent; }
+  .toolbar-btn.btn-primary:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.35); }
+
+  /* ── File Cards ── */
+  .file-card {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1);
+    position: relative;
+    cursor: pointer;
+  }
+  .file-card:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 8px 24px rgba(99,102,241,0.12);
+  }
+  .file-card.selected {
+    border-color: #6366F1 !important;
+    background: rgba(99,102,241,0.05) !important;
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+  }
+  .dark .file-card.selected {
+    background: rgba(99,102,241,0.1) !important;
+  }
+
+  /* ── Skeleton Loading ── */
+  .skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+  }
+  .dark .skeleton {
+    background: linear-gradient(90deg, #0F1629 25%, #141E35 50%, #0F1629 75%);
+    background-size: 200% 100%;
+  }
+
+  /* ── Nav Items ── */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    border: 1px solid transparent;
+  }
+  .dark .nav-item { color: #94a3b8; }
+  .nav-item:hover { background: rgba(99,102,241,0.06); color: #6366F1; border-color: rgba(99,102,241,0.1); }
+  .dark .nav-item:hover { background: rgba(99,102,241,0.1); color: #818CF8; }
+  .nav-item.active {
+    background: rgba(99,102,241,0.1);
+    color: #6366F1;
+    border-color: rgba(99,102,241,0.2);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.1);
+  }
+  .dark .nav-item.active {
+    background: rgba(99,102,241,0.15);
+    color: #818CF8;
+    border-color: rgba(99,102,241,0.25);
+  }
+
+  /* ── Breadcrumb ── */
+  .breadcrumb-item {
+    transition: color 0.15s;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px 6px;
+  }
+  .breadcrumb-item:hover { color: #6366F1; background: rgba(99,102,241,0.08); }
+
+  /* ── Progress Bar ── */
+  .progress-bar-inner {
+    transition: width 0.4s cubic-bezier(0.16,1,0.3,1);
+    background: linear-gradient(90deg, #6366F1, #06B6D4);
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-bar-inner::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* ── Upload Task Item ── */
+  .upload-task-item {
+    background: rgba(99,102,241,0.04);
+    border: 1px solid rgba(99,102,241,0.08);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: all 0.18s;
+  }
+  .dark .upload-task-item {
+    background: rgba(99,102,241,0.06);
+    border-color: rgba(30,45,74,0.8);
+  }
+  .upload-task-item:hover { box-shadow: 0 2px 12px rgba(99,102,241,0.1); }
+
+  /* ── Storage Bar ── */
+  .storage-track {
+    background: rgba(99,102,241,0.08);
+    border-radius: 99px;
+    overflow: hidden;
+    height: 6px;
+  }
+  .storage-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #6366F1, #06B6D4);
+    transition: width 0.7s cubic-bezier(0.16,1,0.3,1);
+    position: relative;
+  }
+  .storage-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 10px; height: 10px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #6366F1;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.show { opacity: 1; }
+  .modal-content {
+    transform: scale(0.92) translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .modal-overlay.show .modal-content { transform: scale(1) translateY(0); }
+
+  /* ── Toast ── */
+  #snackbar {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+    z-index: 2000;
+    pointer-events: none;
+  }
+  #snackbar.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ── Dropzone ── */
+  #globalDropzone {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #globalDropzone.active {
+    opacity: 1;
+    pointer-events: none;
+  }
+  .dropzone-inner {
+    border: 3px dashed #6366F1;
+    border-radius: 24px;
+    position: absolute;
+    inset: 16px;
+    background: rgba(99,102,241,0.04);
+    backdrop-filter: blur(2px);
+  }
+
+  /* ── Input Styles ── */
+  .input-field {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(99,102,241,0.15);
+    background: rgba(99,102,241,0.03);
+    color: inherit;
+    font-size: 0.9rem;
+    transition: all 0.18s;
+    outline: none;
+  }
+  .dark .input-field {
+    background: rgba(99,102,241,0.06);
+    border-color: rgba(30,45,74,0.8);
+    color: #e2e8f0;
+  }
+  .input-field:focus {
+    border-color: #6366F1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    background: rgba(99,102,241,0.05);
+  }
+
+  /* ── Grid Layout ── */
+  #fileGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  @media (min-width: 1280px) {
+    #fileGrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  }
+
+  /* ── List Table ── */
+  .file-list-row {
+    transition: background 0.12s;
+    cursor: pointer;
+  }
+  .file-list-row:hover { background: rgba(99,102,241,0.04); }
+  .dark .file-list-row:hover { background: rgba(99,102,241,0.06); }
+  .file-list-row.selected { background: rgba(99,102,241,0.08) !important; }
+
+  /* ── Icon Button ── */
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.18s;
+    color: #64748b;
+    background: transparent;
+    border: 1px solid transparent;
+  }
+  .dark .icon-btn { color: #94a3b8; }
+  .icon-btn:hover { background: rgba(99,102,241,0.08); color: #6366F1; border-color: rgba(99,102,241,0.15); }
+  .dark .icon-btn:hover { background: rgba(99,102,241,0.12); color: #818CF8; }
+
+  /* ── Sidebar Tree Arrow ── */
+  .tree-arrow { transition: transform 0.2s; }
+  .tree-arrow.open { transform: rotate(90deg); }
+
+  /* ── Login Card ── */
+  .login-bg {
+    background: radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.06) 0%, transparent 50%);
+  }
+  .dark .login-bg {
+    background: radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.1) 0%, transparent 50%);
+  }
+
+  /* ── Header Logo Glow ── */
+  .logo-glow {
+    box-shadow: 0 0 0 1px rgba(99,102,241,0.3), 0 0 16px rgba(99,102,241,0.2);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 767px) {
+    .btn-label { display: none; }
+    #fileList table { min-width: 560px; }
+    #fileList { overflow-x: auto; }
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
+    100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+  }
+  .pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+
+  /* ── Selection highlight ── */
+  .no-select { user-select: none; -webkit-user-select: none; }
+
+  /* ── View Toggle ── */
+  .view-btn { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; cursor: pointer; }
+  .view-btn.active { background: #6366F1; color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.35); }
+  .view-btn:not(.active) { color: #94a3b8; }
+  .view-btn:not(.active):hover { background: rgba(99,102,241,0.08); color: #6366F1; }
+
+  /* ── Tip Badge ── */
+  .badge {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 8px; height: 8px;
+    background: #EF4444;
+    border-radius: 50%;
+    border: 2px solid white;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  .dark .badge { border-color: #080C14; }
+</style>
+</head>
+
+<body class="bg-slate-50 dark:bg-darkBg text-slate-800 dark:text-slate-200 h-screen flex flex-col overflow-hidden transition-colors duration-200">
+
+<!-- ═══════════════════ LOGIN ═══════════════════ -->
+<div id="loginWrap" class="fixed inset-0 z-[200] flex items-center justify-center login-bg bg-slate-50 dark:bg-darkBg transition-opacity duration-300">
+  <div class="w-full max-w-sm mx-4">
+    <div class="glass-card rounded-2xl p-8 shadow-2xl" style="animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1)">
+      <!-- Logo -->
+      <div class="flex flex-col items-center mb-8">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg logo-glow mb-4" style="animation: float 6s ease-in-out infinite">
+          <span class="material-icons-round text-white text-3xl">cloud_sync</span>
+        </div>
+        <h1 class="text-2xl font-bold neon-text">R2 云盘</h1>
+        <p class="text-slate-400 dark:text-slate-500 text-sm mt-1">企业级高可用文件存储系统</p>
+      </div>
+      <!-- Form -->
+      <form onsubmit="event.preventDefault(); doLogin();" class="space-y-4">
+        <div class="relative">
+          <span class="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
+          <input type="password" id="loginPwd" placeholder="请输入访问密钥"
+            class="input-field pl-10"
+            onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+        <p id="loginError" class="text-red-500 text-sm hidden flex items-center gap-1">
+          <span class="material-icons-round text-sm">error_outline</span>
+          <span id="loginErrorText">密钥验证失败，请重试</span>
+        </p>
+        <button type="submit" id="loginBtn"
+          class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white font-semibold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 hover:shadow-indigo-200 dark:hover:shadow-indigo-900">
+          <span class="material-icons-round text-lg">login</span>
+          <span id="loginBtnText">登录系统</span>
+        </button>
+      </form>
+    </div>
+    <p class="text-center text-slate-400 text-xs mt-4">Powered by Cloudflare R2 · D1</p>
+  </div>
+</div>
+
+<!-- ═══════════════════ GLOBAL DROPZONE ═══════════════════ -->
+<div id="globalDropzone">
+  <div class="dropzone-inner flex flex-col items-center justify-center pointer-events-none">
+    <span class="material-icons-round text-7xl text-indigo-400 mb-4" style="animation: float 2s ease-in-out infinite">cloud_upload</span>
+    <h2 class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">松开即可上传</h2>
+    <p class="text-slate-500 mt-2 text-sm">支持文件、文件夹及超大文件分片上传</p>
+  </div>
+</div>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header class="h-16 flex items-center px-4 lg:px-6 shrink-0 z-20">
+  <!-- Logo -->
+  <div class="flex items-center gap-3 w-56 shrink-0">
+    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-md logo-glow">
+      <span class="material-icons-round text-white text-lg">cloud_sync</span>
+    </div>
+    <div>
+      <div class="text-base font-bold neon-text leading-none">R2 Workspace</div>
+      <div class="text-[10px] text-slate-400 mt-0.5">企业云盘</div>
+    </div>
+  </div>
+
+  <!-- Mobile menu toggle -->
+  <button id="menuToggle" class="md:hidden icon-btn ml-1" onclick="toggleSidebar()">
+    <span class="material-icons-round">menu</span>
+  </button>
+
+  <!-- Right actions -->
+  <div class="flex items-center gap-1 ml-auto shrink-0">
+    <!-- Upload tasks toggle -->
+    <button onclick="toggleUploadTaskCenter()" class="icon-btn relative" title="传输任务">
+      <span class="material-icons-round">swap_vert</span>
+      <span id="uploadTaskBadge" class="badge hidden"></span>
+    </button>
+    <!-- Theme toggle -->
+    <button onclick="toggleTheme()" class="icon-btn" title="切换主题">
+      <span id="themeIcon" class="material-icons-round">dark_mode</span>
+    </button>
+    <!-- Logout -->
+    <button onclick="doLogout()" class="icon-btn hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-900/20" title="退出登录">
+      <span class="material-icons-round">power_settings_new</span>
+    </button>
+  </div>
+</header>
+
+<!-- ═══════════════════ MAIN LAYOUT ═══════════════════ -->
+<div class="flex flex-1 overflow-hidden relative">
+
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="w-64 glass border-r border-slate-200/60 dark:border-darkBorder flex flex-col shrink-0 md:flex">
+    <div class="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-0.5">
+
+      <!-- Section: Location -->
+      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 pt-1 pb-2 flex items-center gap-1.5">
+        <span class="material-icons-round text-xs">place</span> 位置
+      </div>
+      <div id="navShared" class="nav-item" onclick="navToSharedRoot()">
+        <span class="material-icons-round text-[18px] text-cyan-500">public</span>
+        <span>共享文件夹</span>
+      </div>
+      <div id="navHome" class="nav-item active" onclick="navTo('')">
+        <span class="material-icons-round text-[18px] text-indigo-500">folder</span>
+        <span>全部文件</span>
+      </div>
+      <div id="navShare" class="nav-item" onclick="navToShare()">
+        <span class="material-icons-round text-[18px] text-emerald-500">share</span>
+        <span>外链分享</span>
+      </div>
+      <div id="navTrash" class="nav-item" onclick="navToTrash()">
+        <span class="material-icons-round text-[18px] text-red-400">delete</span>
+        <span>回收站</span>
+      </div>
+
+      <!-- Divider -->
+      <div class="h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-darkBorder to-transparent my-3"></div>
+
+      <!-- Section: Directory Tree -->
+      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 pb-2 flex items-center gap-1.5">
+        <span class="material-icons-round text-xs">account_tree</span> 目录树
+      </div>
+      <div id="folderTreeContainer" class="flex flex-col gap-0.5">
+        <div class="skeleton h-7 mx-2 mb-1"></div>
+        <div class="skeleton h-7 mx-2 mb-1 opacity-70"></div>
+        <div class="skeleton h-7 mx-4 opacity-40"></div>
+      </div>
+    </div>
+
+    <!-- Storage -->
+    <div class="p-4 border-t border-slate-200/60 dark:border-darkBorder bg-slate-50/50 dark:bg-darkSurface/50">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
+          <span class="material-icons-round text-sm">storage</span> 存储配额
+        </span>
+        <span id="storageText" class="text-xs font-mono text-slate-500 dark:text-slate-400">-- / --</span>
+      </div>
+      <div class="storage-track">
+        <div id="storageBar" class="storage-fill" style="width:0%"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN CONTENT ─── -->
+  <main class="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+
+    <!-- Toolbar -->
+    <div class="glass border-b border-slate-200/60 dark:border-darkBorder shrink-0">
+      <!-- Row 1: Breadcrumb + View Toggle -->
+      <div class="flex items-center justify-between px-4 lg:px-6 py-2.5">
+        <div id="globalBreadcrumb" class="flex items-center text-sm font-medium text-slate-500 dark:text-slate-400 gap-1 flex-wrap min-w-0 flex-1 mr-3"></div>
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- View toggle -->
+          <div class="flex bg-slate-100 dark:bg-darkCard rounded-xl p-1 gap-1 border border-slate-200/60 dark:border-darkBorder">
+            <div id="btnGrid" onclick="setViewMode('grid')" class="view-btn active" title="网格视图">
+              <span class="material-icons-round text-[17px]">grid_view</span>
+            </div>
+            <div id="btnList" onclick="setViewMode('list')" class="view-btn" title="列表视图">
+              <span class="material-icons-round text-[17px]">view_list</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Toolbar Buttons + Search + Actions -->
+      <div class="flex items-center flex-wrap gap-2 px-4 lg:px-6 pb-2.5 border-t border-slate-200/40 dark:border-darkBorder pt-2">
+        <div id="toolbarButtons" class="flex items-center gap-1.5 flex-wrap"></div>
+
+        <!-- Search -->
+        <div class="relative flex-1 min-w-[160px] max-w-xs ml-1">
+          <span class="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+          <input type="text" id="searchInput" placeholder="搜索文件..."
+            class="w-full pl-8 pr-3 py-1.5 rounded-xl text-sm border border-slate-200 dark:border-darkBorder bg-white/60 dark:bg-darkCard/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 transition-all placeholder-slate-400">
+        </div>
+
+        <!-- Action buttons (selection-based) -->
+        <div id="actionButtons" class="flex items-center gap-1.5 flex-wrap"></div>
+      </div>
+    </div>
+
+    <!-- File Area -->
+    <div id="mainScrollArea" class="flex-1 overflow-y-auto p-4 lg:p-6 no-select" onclick="clearSelection(event)">
+      <!-- Empty State -->
+      <div id="emptyState" class="hidden flex-col items-center justify-center h-full text-slate-400 dark:text-slate-600 pb-16">
+        <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/20 flex items-center justify-center mb-6 border border-indigo-100/50 dark:border-indigo-800/30">
+          <span class="material-icons-round text-5xl text-indigo-300 dark:text-indigo-700">folder_open</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-500 dark:text-slate-400">暂无内容</h3>
+        <p class="text-sm mt-1 text-slate-400">拖拽文件到此处或点击上传按钮</p>
+      </div>
+
+      <!-- Grid View -->
+      <div id="fileGrid" class="hidden"></div>
+
+      <!-- List View -->
+      <div id="fileList" class="hidden">
+        <table class="w-full text-left border-collapse">
+          <thead class="sticky top-0 z-10">
+            <tr class="glass text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              <th class="px-4 py-3 w-10 rounded-tl-xl">
+                <input type="checkbox" id="selectAllCheck" class="w-4 h-4 rounded-md border-slate-300 text-indigo-500 cursor-pointer accent-indigo-500" onclick="toggleSelectAll()">
+              </th>
+              <th class="px-4 py-3 cursor-pointer hover:text-indigo-500 transition-colors font-semibold" onclick="sortTable('name')">
+                <div class="flex items-center gap-1">名称 <span class="material-icons-round text-sm opacity-40">unfold_more</span></div>
+              </th>
+              <th class="px-4 py-3 cursor-pointer hover:text-indigo-500 transition-colors font-semibold" onclick="sortTable('size')">
+                <div class="flex items-center gap-1">大小 <span class="material-icons-round text-sm opacity-40">unfold_more</span></div>
+              </th>
+              <th class="px-4 py-3 cursor-pointer hover:text-indigo-500 transition-colors font-semibold" onclick="sortTable('date')">
+                <div class="flex items-center gap-1">修改时间 <span class="material-icons-round text-sm opacity-40">unfold_more</span></div>
+              </th>
+              <th class="px-4 py-3 w-12 text-center rounded-tr-xl"></th>
+            </tr>
+          </thead>
+          <tbody id="fileListBody" class="divide-y divide-slate-100/80 dark:divide-darkBorder/60 text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════════ UPLOAD TASK CENTER ═══════════════════ -->
+<aside id="uploadTaskCenter">
+  <div class="p-4 border-b border-slate-200/60 dark:border-darkBorder flex justify-between items-center shrink-0">
+    <h3 class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+      <span class="material-icons-round text-indigo-500 text-lg">swap_vert</span>
+      传输列表
+    </h3>
+    <button onclick="toggleUploadTaskCenter()" class="icon-btn">
+      <span class="material-icons-round">close</span>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-3" id="uploadTaskList">
+    <div class="flex flex-col items-center justify-center h-40 text-slate-400 text-sm gap-2">
+      <span class="material-icons-round text-3xl opacity-40">inbox</span>
+      暂无传输任务
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════ CONTEXT MENU ═══════════════════ -->
+<div id="contextMenu"></div>
+
+<!-- ═══════════════════ MODAL: New Folder / File ═══════════════════ -->
+<div id="newFolderModal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('newFolderModal')">
+  <div class="modal-content glass-card w-full max-w-sm mx-4 rounded-2xl p-6 shadow-2xl">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+        <span id="inputModalIcon" class="material-icons-round text-indigo-500">create_new_folder</span>
+      </div>
+      <h3 id="inputModalTitle" class="text-lg font-bold text-slate-800 dark:text-slate-100">新建文件夹</h3>
+    </div>
+    <input type="text" id="folderNameInput" placeholder="请输入名称"
+      class="input-field mb-5"
+      onkeydown="if(event.key==='Enter') doInputConfirm()">
+    <div class="flex justify-end gap-3">
+      <button onclick="closeModal('newFolderModal')" class="toolbar-btn">取消</button>
+      <button onclick="doInputConfirm()" class="toolbar-btn btn-primary">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: Share ═══════════════════ -->
+<div id="shareModal" class="modal-overlay hidden" onclick="if(event.target===this) closeShareModal()">
+  <div class="modal-content glass-card w-full max-w-md mx-4 rounded-2xl p-6 shadow-2xl">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+        <span class="material-icons-round text-emerald-500">share</span>
+      </div>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100">创建文件分享</h3>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">文件路径</label>
+        <input type="text" id="shareFilePath" class="input-field" readonly>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">访问密码（可选）</label>
+        <div class="relative">
+          <span class="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">lock_outline</span>
+          <input type="text" id="sharePassword" placeholder="留空则无需密码" class="input-field pl-9">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">有效期</label>
+        <select id="shareExpire" class="input-field">
+          <option value="1">1 天</option>
+          <option value="3">3 天</option>
+          <option value="7" selected>7 天</option>
+          <option value="30">30 天</option>
+          <option value="-1">永久</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3 mt-6">
+      <button onclick="closeShareModal()" class="toolbar-btn">取消</button>
+      <button onclick="confirmShare()" class="toolbar-btn btn-success">
+        <span class="material-icons-round text-sm">content_copy</span>
+        创建并复制
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: Preview ═══════════════════ -->
+<div id="previewModal" class="fixed inset-0 bg-black/95 backdrop-blur-sm z-[120] flex flex-col hidden opacity-0 transition-opacity duration-200">
+  <div class="flex items-center justify-between px-5 py-3 shrink-0 border-b border-white/10 bg-black/30">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+        <span class="material-icons-round text-white text-sm">description</span>
+      </div>
+      <span id="previewTitle" class="text-white font-medium truncate text-sm">文件名</span>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button id="previewDownloadBtn" class="flex items-center gap-1.5 px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium text-white transition-all border border-white/10">
+        <span class="material-icons-round text-base">download</span> 下载
+      </button>
+      <button id="previewForceEditBtn" class="hidden flex items-center gap-1.5 px-4 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 rounded-xl text-sm font-medium text-amber-300 transition-all border border-amber-500/20">
+        <span class="material-icons-round text-base">edit</span> 强制编辑
+      </button>
+      <button onclick="closePreview()" class="icon-btn !text-white hover:!bg-white/15 !border-white/10">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+  </div>
+  <div class="flex-1 flex items-center justify-center overflow-hidden p-4 md:p-8" id="previewContainer"></div>
+</div>
+
+<!-- ═══════════════════ TOAST ═══════════════════ -->
+<div id="snackbar" class="flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-2xl text-sm font-medium border">
+  <span class="material-icons-round text-[18px]" id="snackbarIcon">info</span>
+  <span id="snackbarText">操作成功</span>
+</div>
+
+<!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
+<script>
+// ================================================================
+// CONSTANTS
+// ================================================================
+const EDITABLE_EXTS = [
+  'txt','md','json','js','ts','jsx','tsx','css','html','htm','xml','svg',
+  'yaml','yml','toml','ini','cfg','conf','env','sh','bash','py','go','rs',
+  'java','c','cpp','h','hpp','rb','php','sql','graphql','vue','svelte',
+  'gitignore','dockerignore','editorconfig','properties','log','csv'
+];
+const IMG_EXTS = ['png','jpg','jpeg','gif','webp','svg','ico','bmp'];
+const VID_EXTS = ['mp4','webm','ogg','mov'];
+const AUD_EXTS = ['mp3','wav','ogg','flac','aac'];
+const API_BASE = '';
+
+// ================================================================
+// STATE
+// ================================================================
+const state = {
+  token: localStorage.getItem('r2_token') || '',
+  currentPath: '',
+  currentView: 'files',
+  viewMode: localStorage.getItem('r2_view_mode') || 'grid',
+  currentList: [],
+  selectedFiles: new Set(),
+  sortKey: 'name',
+  sortDesc: false,
+  uploadTasks: [],
+  taskIdCounter: 0,
+  previewPath: null,
+  maxQuotaBytes: 100 * 1024 * 1024 * 1024,
+  clipboard: null,
+  shareMap: {},
+  sidebarTree: { children: {} },
+  sidebarLoaded: new Set(),
+};
+
+// ================================================================
+// UTILITIES
+// ================================================================
+function formatSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024, sizes = ['B','KB','MB','GB','TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k,i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatDate(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '—';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+function debounce(fn, delay) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+function getIconInfo(name, isDir) {
+  if (isDir) return { icon: 'folder', color: '#F9AB00', bg: '#FFF8E1' };
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const map = {
+    pdf: { icon: 'picture_as_pdf', color: '#EA4335', bg: '#FFEBEE' },
+    doc: { icon: 'description', color: '#4285F4', bg: '#E3F2FD' },
+    docx: { icon: 'description', color: '#4285F4', bg: '#E3F2FD' },
+    xls: { icon: 'table_view', color: '#34A853', bg: '#E8F5E9' },
+    xlsx: { icon: 'table_view', color: '#34A853', bg: '#E8F5E9' },
+    ppt: { icon: 'slideshow', color: '#FF6D00', bg: '#FFF3E0' },
+    pptx: { icon: 'slideshow', color: '#FF6D00', bg: '#FFF3E0' },
+    mp4: { icon: 'movie', color: '#EA4335', bg: '#FFEBEE' },
+    webm: { icon: 'movie', color: '#EA4335', bg: '#FFEBEE' },
+    mp3: { icon: 'audio_file', color: '#9C27B0', bg: '#F3E5F5' },
+    wav: { icon: 'audio_file', color: '#9C27B0', bg: '#F3E5F5' },
+    png: { icon: 'image', color: '#00ACC1', bg: '#E0F7FA' },
+    jpg: { icon: 'image', color: '#00ACC1', bg: '#E0F7FA' },
+    jpeg: { icon: 'image', color: '#00ACC1', bg: '#E0F7FA' },
+    gif: { icon: 'image', color: '#00ACC1', bg: '#E0F7FA' },
+    webp: { icon: 'image', color: '#00ACC1', bg: '#E0F7FA' },
+    svg: { icon: 'image', color: '#00ACC1', bg: '#E0F7FA' },
+    zip: { icon: 'folder_zip', color: '#5F6368', bg: '#ECEFF1' },
+    rar: { icon: 'folder_zip', color: '#5F6368', bg: '#ECEFF1' },
+    '7z': { icon: 'folder_zip', color: '#5F6368', bg: '#ECEFF1' },
+    js: { icon: 'code', color: '#F29900', bg: '#FFFDE7' },
+    ts: { icon: 'code', color: '#2979FF', bg: '#E3F2FD' },
+    json: { icon: 'data_object', color: '#F29900', bg: '#FFFDE7' },
+    html: { icon: 'html', color: '#E64A19', bg: '#FBE9E7' },
+    css: { icon: 'css', color: '#0277BD', bg: '#E1F5FE' },
+    py: { icon: 'code', color: '#1565C0', bg: '#E3F2FD' },
+    txt: { icon: 'article', color: '#607D8B', bg: '#ECEFF1' },
+    md: { icon: 'article', color: '#607D8B', bg: '#ECEFF1' },
+    csv: { icon: 'table_chart', color: '#34A853', bg: '#E8F5E9' },
+  };
+  return map[ext] || { icon: 'insert_drive_file', color: '#90A4AE', bg: '#ECEFF1' };
+}
+
+function navToSharedRoot() { window.open('/shared', '_blank'); }
+
+// ================================================================
+// TOAST
+// ================================================================
+let snackbarTimer;
+function showToast(msg, type = 'info', duration = 3200) {
+  const bar = document.getElementById('snackbar');
+  const icon = document.getElementById('snackbarIcon');
+  const text = document.getElementById('snackbarText');
+  text.textContent = msg;
+  const styles = {
+    info:    { cls: 'bg-slate-800 text-white border-slate-700', icon: 'info' },
+    success: { cls: 'bg-emerald-600 text-white border-emerald-500', icon: 'check_circle' },
+    error:   { cls: 'bg-red-600 text-white border-red-500', icon: 'error' },
+    warn:    { cls: 'bg-amber-500 text-white border-amber-400', icon: 'warning' },
+  };
+  const s = styles[type] || styles.info;
+  bar.className = `fixed top-6 left-1/2 flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-2xl text-sm font-medium border z-[2000] pointer-events-none ${s.cls}`;
+  icon.textContent = s.icon;
+  bar.classList.add('show');
+  clearTimeout(snackbarTimer);
+  snackbarTimer = setTimeout(() => bar.classList.remove('show'), duration);
+}
+
+// ================================================================
+// API
+// ================================================================
+async function apiRequest(endpoint, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+  const res = await fetch(API_BASE + endpoint, {
+    ...options,
+    headers: { ...headers, ...options.headers },
+  });
+  if (options.responseType === 'blob' || options.responseType === 'arraybuffer') {
+    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    return res;
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) { doLogout(); }
+    throw new Error(data.error || data.message || '请求失败');
+  }
+  return data;
+}
+
+// ================================================================
+// AUTH
+// ================================================================
+async function doLogin() {
+  const pwd = document.getElementById('loginPwd').value.trim();
+  const errEl = document.getElementById('loginError');
+  const errText = document.getElementById('loginErrorText');
+  const btn = document.getElementById('loginBtn');
+  const btnText = document.getElementById('loginBtnText');
+
+  if (!pwd) {
+    errEl.classList.remove('hidden');
+    errText.textContent = '请输入访问密钥';
+    return;
+  }
+  btn.disabled = true;
+  btnText.textContent = '验证中...';
+  errEl.classList.add('hidden');
+
+  try {
+    await apiRequest('/api/login', { method: 'POST', body: JSON.stringify({ token: pwd }) });
+    state.token = pwd;
+    localStorage.setItem('r2_token', pwd);
+    document.getElementById('loginWrap').classList.add('opacity-0', 'pointer-events-none');
+    await loadServerConfig();
+    await refreshData();
+    renderSidebar();
+  } catch(e) {
+    errEl.classList.remove('hidden');
+    errText.textContent = e.message || '密钥错误，请重试';
+    document.getElementById('loginPwd').value = '';
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = '登录系统';
+  }
+}
+
+function doLogout() {
+  state.token = '';
+  localStorage.removeItem('r2_token');
+  document.getElementById('loginWrap').classList.remove('opacity-0', 'pointer-events-none');
+  document.getElementById('loginPwd').value = '';
+  state.currentList = [];
+  renderCurrentView();
+  renderSidebar();
+}
+
+async function loadServerConfig() {
+  try {
+    const cfg = await apiRequest('/api/config');
+    if (cfg.maxQuotaBytes) state.maxQuotaBytes = cfg.maxQuotaBytes;
+  } catch(e) {}
+}
+
+// ================================================================
+// DATA & REFRESH
+// ================================================================
+async function refreshData(retryCount = 0) {
+  try {
+    if (state.currentView === 'files') {
+      const result = await apiRequest(`/api/dir?path=${encodeURIComponent(state.currentPath)}`);
+      const folders = (result.folders || []).map(name => ({
+        name,
+        path: state.currentPath ? `${state.currentPath}/${name}` : name,
+        isFolder: true, size: 0,
+        uploaded: new Date().toISOString()
+      }));
+      const files = (result.files || []).map(f => ({
+        name: f.name,
+        path: state.currentPath ? `${state.currentPath}/${f.name}` : f.name,
+        isFolder: false, size: f.size || 0,
+        uploaded: f.uploaded || f.updated || new Date().toISOString()
+      }));
+      state.currentList = [...folders, ...files];
+
+      if (state.currentList.length === 0 && retryCount < 2) {
+        await new Promise(r => setTimeout(r, 350));
+        return refreshData(retryCount + 1);
+      }
+
+      state.sidebarTree = { children: {} };
+      state.sidebarLoaded = new Set();
+      await loadSidebarChildren('');
+      if (state.currentPath) await loadSidebarChildren(state.currentPath);
+
+      await loadShares();
+      await loadQuota();
+      renderCurrentView();
+      renderSidebar();
+      updateBreadcrumb();
+      updateToolbarButtons();
+      updateSidebarHighlight();
+      updateActionButtons();
+
+    } else if (state.currentView === 'trash') {
+      state.currentList = [];
+      state.currentList = await apiRequest('/api/trash');
+      renderCurrentView();
+      updateBreadcrumb();
+      updateToolbarButtons();
+      updateSidebarHighlight();
+      updateActionButtons();
+
+    } else if (state.currentView === 'shares') {
+      state.currentList = [];
+      try { state.currentList = await apiRequest('/api/shares'); } catch(e) {}
+      renderCurrentView();
+      updateBreadcrumb();
+      updateToolbarButtons();
+      updateSidebarHighlight();
+      updateActionButtons();
+    }
+  } catch(e) {
+    if (retryCount < 2) {
+      await new Promise(r => setTimeout(r, 350));
+      return refreshData(retryCount + 1);
+    }
+    showToast('加载失败: ' + e.message, 'error');
+  }
+}
+
+async function loadShares() {
+  try {
+    const shares = await apiRequest('/api/shares');
+    state.shareMap = {};
+    shares.forEach(s => { state.shareMap[s.path] = s; });
+  } catch(e) {}
+}
+
+async function loadQuota() {
+  try {
+    const data = await apiRequest('/api/quota');
+    const used = data.used || 0;
+    const max = data.max || state.maxQuotaBytes;
+    const pct = Math.min(100, (used / max) * 100);
+    document.getElementById('storageBar').style.width = `${pct}%`;
+    document.getElementById('storageText').textContent = `${formatSize(used)} / ${formatSize(max)}`;
+    // Color warning
+    const bar = document.getElementById('storageBar');
+    if (pct > 90) bar.style.background = 'linear-gradient(90deg, #EF4444, #F97316)';
+    else if (pct > 70) bar.style.background = 'linear-gradient(90deg, #F59E0B, #EAB308)';
+    else bar.style.background = '';
+  } catch(e) {}
+}
+
+// ================================================================
+// NAVIGATION
+// ================================================================
+function navTo(path) {
+  state.currentView = 'files';
+  state.currentPath = (path || '').replace(/\/$/, '');
+  state.selectedFiles.clear();
+  refreshData();
+  if (window.innerWidth < 768) {
+    document.querySelector('aside').classList.remove('open');
+  }
+}
+
+function navToTrash() {
+  state.currentView = 'trash';
+  state.currentPath = '';
+  state.selectedFiles.clear();
+  refreshData();
+}
+
+function navToShare() {
+  state.currentView = 'shares';
+  state.currentPath = '';
+  state.selectedFiles.clear();
+  refreshData();
+}
+
+function toggleSidebar() {
+  document.querySelector('aside').classList.toggle('open');
+}
+
+// ================================================================
+// SIDEBAR HIGHLIGHT
+// ================================================================
+function updateSidebarHighlight() {
+  ['navHome','navShare','navTrash'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'nav-item';
+  });
+  const map = { files: 'navHome', shares: 'navShare', trash: 'navTrash' };
+  const el = document.getElementById(map[state.currentView]);
+  if (el) el.className = 'nav-item active';
+}
+
+// ================================================================
+// TOOLBAR
+// ================================================================
+function updateToolbarButtons() {
+  const c = document.getElementById('toolbarButtons');
+  if (state.currentView === 'files') {
+    c.innerHTML = `
+      <button onclick="document.getElementById('fileInput').click()" class="toolbar-btn">
+        <span class="material-icons-round text-sm">upload_file</span><span class="btn-label">上传文件</span>
+      </button>
+      <input type="file" id="fileInput" class="hidden" multiple onchange="handleFilesSelect(event)">
+      <button onclick="document.getElementById('folderInput').click()" class="toolbar-btn">
+        <span class="material-icons-round text-sm">drive_folder_upload</span><span class="btn-label">上传文件夹</span>
+      </button>
+      <input type="file" id="folderInput" class="hidden" webkitdirectory multiple onchange="handleFilesSelect(event)">
+      <button onclick="openModal('newFolderModal')" class="toolbar-btn">
+        <span class="material-icons-round text-sm">create_new_folder</span><span class="btn-label">新建文件夹</span>
+      </button>
+      <button onclick="openNewFileModal()" class="toolbar-btn">
+        <span class="material-icons-round text-sm">note_add</span><span class="btn-label">新建文件</span>
+      </button>
+    `;
+  } else {
+    c.innerHTML = '';
+  }
+}
+
+function updateActionButtons() {
+  const c = document.getElementById('actionButtons');
+  let html = '';
+
+  // Clipboard
+  if (state.clipboard) {
+    html += `<button onclick="doPaste()" class="toolbar-btn btn-success"><span class="material-icons-round text-sm">content_paste</span>粘贴</button>`;
+    html += `<button onclick="clearClipboard()" class="toolbar-btn"><span class="material-icons-round text-sm">clear</span>取消${state.clipboard.action === 'copy' ? '复制' : '剪切'}</button>`;
+  }
+
+  const count = state.selectedFiles.size;
+  if (count === 0) { c.innerHTML = html; return; }
+
+  const view = state.currentView;
+  if (view === 'files') {
+    if (count === 1) html += `<button onclick="doRename()" class="toolbar-btn"><span class="material-icons-round text-sm">edit</span>重命名</button>`;
+    html += `<button onclick="setClipboard('copy')" class="toolbar-btn"><span class="material-icons-round text-sm">content_copy</span>复制</button>`;
+    html += `<button onclick="setClipboard('cut')" class="toolbar-btn"><span class="material-icons-round text-sm">cut</span>剪切</button>`;
+    html += `<button onclick="doBatch('delete')" class="toolbar-btn btn-danger"><span class="material-icons-round text-sm">delete</span>删除</button>`;
+    if (count === 1) {
+      const key = Array.from(state.selectedFiles)[0];
+      const path = key.split('|')[0];
+      const item = state.currentList.find(f => f.path === path);
+      if (item && !item.isFolder) {
+        html += `<button onclick="openPreview('${escHtml(path)}')" class="toolbar-btn"><span class="material-icons-round text-sm">visibility</span>预览</button>`;
+        html += `<button onclick="downloadFile('${escHtml(path)}')" class="toolbar-btn"><span class="material-icons-round text-sm">download</span>下载</button>`;
+        const shareInfo = state.shareMap[path];
+        if (shareInfo) {
+          html += `<button onclick="copyShareLink('${escHtml(shareInfo.token)}')" class="toolbar-btn btn-success"><span class="material-icons-round text-sm">link</span>复制链接</button>`;
+        } else {
+          html += `<button onclick="doShare('${escHtml(path)}')" class="toolbar-btn"><span class="material-icons-round text-sm">share</span>分享</button>`;
+        }
+      }
+    }
+  } else if (view === 'trash') {
+    html += `<button onclick="doBatchRestore()" class="toolbar-btn btn-success"><span class="material-icons-round text-sm">restore</span>恢复</button>`;
+    html += `<button onclick="doBatchPermanentDelete()" class="toolbar-btn btn-danger"><span class="material-icons-round text-sm">delete_forever</span>彻底删除</button>`;
+  } else if (view === 'shares') {
+    const tokens = Array.from(state.selectedFiles);
+    if (count === 1) {
+      html += `<button onclick="copyShareLink('${escHtml(tokens[0])}')" class="toolbar-btn"><span class="material-icons-round text-sm">link</span>复制链接</button>`;
+      html += `<button onclick="revokeShare('${escHtml(tokens[0])}')" class="toolbar-btn btn-danger"><span class="material-icons-round text-sm">link_off</span>撤销分享</button>`;
+    } else {
+      html += `<button onclick="batchRevokeShare()" class="toolbar-btn btn-danger"><span class="material-icons-round text-sm">link_off</span>撤销 ${count} 个</button>`;
+    }
+  }
+  c.innerHTML = html;
+}
+
+// ================================================================
+// RENDER VIEWS
+// ================================================================
+function sortList(list) {
+  const key = state.sortKey, desc = state.sortDesc;
+  list.sort((a, b) => {
+    let va, vb;
+    if (key === 'name') {
+      va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase();
+    } else if (key === 'size') {
+      va = a.isFolder ? -1 : (a.size||0); vb = b.isFolder ? -1 : (b.size||0);
+    } else {
+      va = new Date(a.uploaded||a.deleted_at||0).getTime();
+      vb = new Date(b.uploaded||b.deleted_at||0).getTime();
+    }
+    if (va < vb) return desc ? 1 : -1;
+    if (va > vb) return desc ? -1 : 1;
+    return 0;
+  });
+}
+
+function getSelectKey(item) {
+  const isDir = item.isFolder || item.is_folder;
+  if (state.currentView === 'shares') return item.token;
+  return (item.path || '') + '|' + (isDir ? 'folder' : 'file');
+}
+
+function renderCurrentView() {
+  const list = state.currentList || [];
+  const empty = document.getElementById('emptyState');
+  const grid = document.getElementById('fileGrid');
+  const listV = document.getElementById('fileList');
+
+  if (!list.length) {
+    empty.classList.remove('hidden'); empty.classList.add('flex');
+    grid.classList.add('hidden'); listV.classList.add('hidden');
+    const chk = document.getElementById('selectAllCheck');
+    if (chk) chk.checked = false;
+    updateActionButtons();
+    return;
+  }
+  empty.classList.add('hidden'); empty.classList.remove('flex');
+  sortList(list);
+
+  if (state.viewMode === 'grid') {
+    grid.classList.remove('hidden'); listV.classList.add('hidden');
+    renderGrid(list);
+  } else {
+    grid.classList.add('hidden'); listV.classList.remove('hidden');
+    renderList(list);
+  }
+  updateActionButtons();
+  const chk = document.getElementById('selectAllCheck');
+  if (chk) chk.checked = list.length > 0 && state.selectedFiles.size === list.length;
+}
+
+function renderGrid(list) {
+  const grid = document.getElementById('fileGrid');
+  grid.innerHTML = list.map(item => {
+    const isDir = item.isFolder || item.is_folder;
+    const name = item.name || (item.path||'').split('/').pop();
+    const info = getIconInfo(name, isDir);
+    const sk = getSelectKey(item);
+    const sel = state.selectedFiles.has(sk);
+    return `
+    <div class="file-card rounded-xl border ${sel ? 'selected border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-200/60 dark:border-darkBorder bg-white/70 dark:bg-darkCard/70'} p-3 group neon-border"
+      data-key="${escHtml(sk)}" data-isdir="${isDir}"
+      onclick="handleItemClick(event,this)"
+      oncontextmenu="showContextMenu(event,'${escHtml(sk)}',${isDir})">
+      <!-- Checkbox -->
+      <div class="absolute top-2 left-2 z-10 ${sel ? '' : 'opacity-0 group-hover:opacity-100'} transition-all" onclick="event.stopPropagation()">
+        <input type="checkbox" class="w-4 h-4 rounded-md accent-indigo-500 cursor-pointer" ${sel ? 'checked' : ''}
+          onchange="toggleSelect('${escHtml(sk)}')">
+      </div>
+      <!-- Icon -->
+      <div class="w-full aspect-square rounded-xl flex items-center justify-center mb-2.5 text-[2.5rem]"
+        style="background:${info.bg}20">
+        <span class="material-icons-round text-[2.5rem]" style="color:${info.color}">${info.icon}</span>
+      </div>
+      <!-- Name -->
+      <div class="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate leading-snug" title="${escHtml(name)}">${escHtml(name)}</div>
+      <div class="text-[10px] text-slate-400 mt-0.5">${isDir ? '文件夹' : formatSize(item.size)}</div>
+      <!-- Share badge -->
+      ${!isDir && state.shareMap[item.path] ? '<div class="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center"><span class="material-icons-round text-white text-[10px]">share</span></div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderList(list) {
+  const tbody = document.getElementById('fileListBody');
+  tbody.innerHTML = list.map(item => {
+    const isDir = item.isFolder || item.is_folder;
+    const name = item.name || (item.path||'').split('/').pop();
+    const info = getIconInfo(name, isDir);
+    const sk = getSelectKey(item);
+    const sel = state.selectedFiles.has(sk);
+    const ts = item.uploaded || item.deleted_at || item.expires_at;
+    return `
+    <tr class="file-list-row ${sel ? 'selected' : ''} group" data-key="${escHtml(sk)}" data-isdir="${isDir}"
+      onclick="handleItemClick(event,this)"
+      oncontextmenu="showContextMenu(event,'${escHtml(sk)}',${isDir})">
+      <td class="px-4 py-2.5 w-10" onclick="event.stopPropagation()">
+        <input type="checkbox" class="w-4 h-4 rounded-md accent-indigo-500 cursor-pointer" ${sel ? 'checked' : ''}
+          onchange="toggleSelect('${escHtml(sk)}')">
+      </td>
+      <td class="px-4 py-2.5">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background:${info.bg}30">
+            <span class="material-icons-round text-xl" style="color:${info.color}">${info.icon}</span>
+          </div>
+          <span class="font-medium truncate max-w-[260px] text-slate-700 dark:text-slate-200">${escHtml(name)}</span>
+          ${!isDir && state.shareMap[item.path] ? '<span class="material-icons-round text-sm text-emerald-500 ml-1" title="已分享">share</span>' : ''}
+        </div>
+      </td>
+      <td class="px-4 py-2.5 text-slate-400 text-sm">${isDir ? '—' : formatSize(item.size)}</td>
+      <td class="px-4 py-2.5 text-slate-400 text-sm">${formatDate(ts)}</td>
+      <td class="px-4 py-2.5 text-center">
+        <button class="icon-btn opacity-0 group-hover:opacity-100"
+          onclick="event.stopPropagation(); showContextMenu(event,'${escHtml(sk)}',${isDir})">
+          <span class="material-icons-round text-base">more_vert</span>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ================================================================
+// ITEM INTERACTION
+// ================================================================
+function handleItemClick(event, el) {
+  if (event.target.tagName === 'INPUT') return;
+  event.stopPropagation();
+  const key = el.dataset.key;
+  const isDir = el.dataset.isdir === 'true';
+  const purePath = key.split('|')[0];
+
+  if (event.ctrlKey || event.metaKey || event.shiftKey) {
+    toggleSelect(key);
+    return;
+  }
+
+  if (isDir && state.currentView === 'files') {
+    navTo(purePath);
+  } else if (!isDir) {
+    openPreview(purePath);
+  }
+}
+
+function toggleSelect(key) {
+  if (state.selectedFiles.has(key)) state.selectedFiles.delete(key);
+  else state.selectedFiles.add(key);
+  renderCurrentView();
+  updateActionButtons();
+}
+
+function toggleSelectAll() {
+  const chk = document.getElementById('selectAllCheck');
+  state.selectedFiles.clear();
+  if (chk.checked) {
+    state.currentList.forEach(item => state.selectedFiles.add(getSelectKey(item)));
+  }
+  renderCurrentView();
+  updateActionButtons();
+}
+
+function clearSelection(e) {
+  if (!e) { state.selectedFiles.clear(); renderCurrentView(); updateActionButtons(); return; }
+  if (e.target.closest('.file-card') || e.target.closest('tbody tr')) return;
+  if (['INPUT','BUTTON','SELECT'].includes(e.target.tagName)) return;
+  state.selectedFiles.clear();
+  renderCurrentView();
+  updateActionButtons();
+}
+
+function setViewMode(mode) {
+  state.viewMode = mode;
+  localStorage.setItem('r2_view_mode', mode);
+  document.getElementById('btnGrid').className = `view-btn ${mode === 'grid' ? 'active' : ''}`;
+  document.getElementById('btnList').className = `view-btn ${mode === 'list' ? 'active' : ''}`;
+  if (state.currentList.length) renderCurrentView();
+}
+
+function sortTable(key) {
+  if (state.sortKey === key) state.sortDesc = !state.sortDesc;
+  else { state.sortKey = key; state.sortDesc = false; }
+  renderCurrentView();
+}
+
+// ================================================================
+// CONTEXT MENU
+// ================================================================
+function showContextMenu(e, key, isDir) {
+  e.preventDefault(); e.stopPropagation();
+  const purePath = key.split('|')[0];
+
+  if (!state.selectedFiles.has(key)) {
+    state.selectedFiles.clear();
+    state.selectedFiles.add(key);
+    renderCurrentView();
+    updateActionButtons();
+  }
+
+  const menu = document.getElementById('contextMenu');
+  menu.innerHTML = '';
+
+  const addItem = (icon, label, cls, action) => {
+    const div = document.createElement('div');
+    div.className = `menu-item ${cls||''}`;
+    div.innerHTML = `<span class="material-icons-round">${icon}</span>${label}`;
+    div.addEventListener('click', ev => { ev.stopPropagation(); menu.classList.remove('show'); action(); });
+    menu.appendChild(div);
+  };
+  const addDivider = () => { const hr = document.createElement('div'); hr.className = 'menu-divider'; menu.appendChild(hr); };
+
+  const view = state.currentView;
+  if (view === 'files') {
+    addItem('edit', '重命名', '', () => doRename());
+    addDivider();
+    addItem('content_copy', '复制', '', () => setClipboard('copy'));
+    addItem('cut', '剪切', '', () => setClipboard('cut'));
+    if (state.clipboard) addItem('content_paste', '粘贴', 'text-emerald-600', () => doPaste());
+    addDivider();
+    if (!isDir) {
+      addItem('visibility', '预览', '', () => openPreview(purePath));
+      addItem('download', '下载', '', () => downloadFile(purePath));
+      const si = state.shareMap[key] || state.shareMap[purePath];
+      if (si) addItem('link', '复制分享链接', 'text-emerald-600', () => copyShareLink(si.token));
+      else addItem('share', '创建分享', '', () => doShare(purePath));
+      addDivider();
+    }
+    addItem('delete', '删除', 'text-red-500', () => doBatch('delete'));
+  } else if (view === 'trash') {
+    addItem('restore', '恢复', 'text-emerald-600', () => doBatchRestore());
+    addItem('delete_forever', '彻底删除', 'text-red-500', () => doBatchPermanentDelete());
+  } else if (view === 'shares') {
+    addItem('link', '复制分享链接', '', () => copyShareLink(purePath));
+    addDivider();
+    addItem('link_off', '撤销分享', 'text-red-500', () => revokeShare(purePath));
+  }
+
+  menu.classList.add('show');
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+
+  requestAnimationFrame(() => {
+    const w = menu.offsetWidth || 192, h = menu.offsetHeight || 200;
+    let l = e.clientX, t = e.clientY;
+    if (l + w > window.innerWidth - 8) l = window.innerWidth - w - 8;
+    if (t + h > window.innerHeight - 8) t = window.innerHeight - h - 8;
+    if (l < 8) l = 8; if (t < 8) t = 8;
+    menu.style.left = l + 'px'; menu.style.top = t + 'px';
+  });
+}
+
+// ================================================================
+// FILE OPERATIONS
+// ================================================================
+async function doRename() {
+  if (state.selectedFiles.size !== 1) return;
+  const key = Array.from(state.selectedFiles)[0];
+  const [oldPath, type] = key.split('|');
+  const cleanPath = oldPath.endsWith('/') ? oldPath.slice(0,-1) : oldPath;
+  const oldName = cleanPath.split('/').pop();
+  const newName = prompt('输入新名称', oldName);
+  if (!newName || newName === oldName) return;
+  try {
+    await apiRequest('/api/op', { method: 'POST', body: JSON.stringify({ op: 'rename', srcPath: cleanPath, newName }) });
+    showToast('重命名成功', 'success');
+    state.selectedFiles.clear();
+    await refreshData();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function doBatch(op) {
+  if (!state.selectedFiles.size) return;
+  const keys = Array.from(state.selectedFiles);
+  if (op === 'delete') {
+    if (!confirm(`确定将 ${keys.length} 项移入回收站？`)) return;
+    try {
+      for (let i = 0; i < keys.length; i++) {
+        let [cleanPath, type] = keys[i].split('|');
+        if (type === 'folder' && cleanPath.endsWith('/')) cleanPath = cleanPath.slice(0,-1);
+        await apiRequest('/api/op', { method: 'POST', body: JSON.stringify({ op: 'delete', srcPath: cleanPath }) });
+        showToast(`正在删除 (${i+1}/${keys.length})`, 'info', 1000);
+      }
+      showToast(`已删除 ${keys.length} 项`, 'success');
+      state.selectedFiles.clear();
+      clearClipboard();
+      await refreshData();
+    } catch(e) { showToast(e.message, 'error'); }
+  }
+}
+
+async function doBatchRestore() {
+  const keys = Array.from(state.selectedFiles);
+  if (!keys.length) return;
+  try {
+    for (let i = 0; i < keys.length; i++) {
+      const item = state.currentList.find(it => getSelectKey(it) === keys[i]);
+      const nodeId = item?.id;
+      if (nodeId) {
+        await apiRequest('/api/restore', { method: 'POST', body: JSON.stringify({ nodeId }) });
+      }
+      showToast(`正在恢复 (${i+1}/${keys.length})`, 'info', 1000);
+    }
+    showToast('恢复成功', 'success');
+    state.selectedFiles.clear();
+    await refreshData();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function doBatchPermanentDelete() {
+  if (!confirm('彻底删除后无法恢复，确定吗？')) return;
+  const keys = Array.from(state.selectedFiles);
+  try {
+    for (let i = 0; i < keys.length; i++) {
+      const item = state.currentList.find(it => getSelectKey(it) === keys[i]);
+      const nodeId = item?.id;
+      if (nodeId) {
+        await apiRequest('/api/permanent-delete', { method: 'DELETE', body: JSON.stringify({ nodeId }) });
+      }
+      showToast(`正在删除 (${i+1}/${keys.length})`, 'info', 1000);
+    }
+    showToast('已永久删除', 'success');
+    state.selectedFiles.clear();
+    await refreshData();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ================================================================
+// CLIPBOARD
+// ================================================================
+function setClipboard(action) {
+  if (!state.selectedFiles.size) return;
+  const cleanPaths = Array.from(state.selectedFiles).map(k => k.split('|')[0]);
+  state.clipboard = { action, paths: cleanPaths, sourcePath: state.currentPath };
+  apiRequest('/api/clipboard', { method: 'POST', body: JSON.stringify({ action, paths: cleanPaths, sourcePath: state.currentPath }) });
+  showToast(`已${action === 'copy' ? '复制' : '剪切'} ${cleanPaths.length} 项`, 'info');
+  clearSelection();
+  updateActionButtons();
+}
+
+async function doPaste() {
+  if (!state.clipboard) { showToast('剪贴板为空', 'warn'); return; }
+  const { action, paths } = state.clipboard;
+  try {
+    for (const p of paths) {
+      const cleanPath = p.endsWith('/') ? p.slice(0,-1) : p;
+      await apiRequest('/api/op', { method: 'POST', body: JSON.stringify({ op: action === 'copy' ? 'copy' : 'move', srcPath: cleanPath, destPath: state.currentPath }) });
+    }
+    showToast(`${action === 'copy' ? '复制' : '移动'}成功`, 'success');
+    state.clipboard = null;
+    await apiRequest('/api/clipboard', { method: 'DELETE' });
+    await refreshData();
+    updateActionButtons();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function clearClipboard() {
+  state.clipboard = null;
+  apiRequest('/api/clipboard', { method: 'DELETE' }).catch(() => {});
+  updateActionButtons();
+}
+
+// ================================================================
+// SHARE
+// ================================================================
+let shareTargetPath = '';
+function doShare(path) { openShareModal(path); }
+
+function openShareModal(path) {
+  shareTargetPath = path;
+  document.getElementById('shareFilePath').value = path;
+  document.getElementById('sharePassword').value = '';
+  document.getElementById('shareExpire').value = '7';
+  const modal = document.getElementById('shareModal');
+  modal.classList.remove('hidden');
+  setTimeout(() => modal.classList.add('show'), 10);
+}
+
+window.closeShareModal = function() {
+  const modal = document.getElementById('shareModal');
+  if (!modal) return;
+  modal.classList.remove('show');
+  setTimeout(() => modal.classList.add('hidden'), 200);
+};
+
+async function confirmShare() {
+  const password = document.getElementById('sharePassword').value.trim();
+  const expireDays = parseInt(document.getElementById('shareExpire').value);
+  try {
+    const result = await apiRequest('/api/share', {
+      method: 'POST',
+      body: JSON.stringify({ paths: [shareTargetPath], expireDays, shareType: password ? 'private' : 'public', password: password || null })
+    });
+    const shareUrl = result.shares[0].url;
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('分享链接已复制到剪贴板', 'success');
+    } else {
+      prompt('复制以下链接', shareUrl);
+    }
+    closeShareModal();
+    await loadShares();
+    await refreshData();
+    updateActionButtons();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function copyShareLink(token) {
+  let si = Object.values(state.shareMap).find(s => s.token === token);
+  if (!si) si = state.currentList.find(i => i.token === token);
+  if (si) {
+    const url = si.url || `${location.origin}/share/${si.token}/${encodeURIComponent(si.path||'')}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => showToast('链接已复制', 'success')).catch(() => prompt('复制以下链接', url));
+    } else {
+      prompt('复制以下链接', url);
+    }
+  } else {
+    showToast('未找到分享链接，请刷新重试', 'error');
+  }
+}
+
+async function revokeShare(token) {
+  if (!confirm('确定要撤销此分享链接吗？')) return;
+  try {
+    await apiRequest('/api/revoke-share', { method: 'POST', body: JSON.stringify({ token }) });
+    showToast('已撤销分享', 'success');
+    await refreshData();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function batchRevokeShare() {
+  const tokens = Array.from(state.selectedFiles);
+  if (!tokens.length) return;
+  if (!confirm(`确定撤销 ${tokens.length} 个分享链接吗？`)) return;
+  try {
+    for (const token of tokens) {
+      await apiRequest('/api/revoke-share', { method: 'POST', body: JSON.stringify({ token }) });
+    }
+    showToast('已批量撤销分享', 'success');
+    state.selectedFiles.clear();
+    await refreshData();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ================================================================
+// DOWNLOAD / PREVIEW
+// ================================================================
+function downloadFile(path) {
+  window.open(API_BASE + `/api/download?path=${encodeURIComponent(path)}&token=${state.token}`, '_blank');
+}
+
+function openPreview(path) {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const url = API_BASE + `/api/file?path=${encodeURIComponent(path)}&token=${state.token}`;
+  const container = document.getElementById('previewContainer');
+  const titleEl = document.getElementById('previewTitle');
+  const downloadBtn = document.getElementById('previewDownloadBtn');
+  const forceEditBtn = document.getElementById('previewForceEditBtn');
+
+  titleEl.textContent = path.split('/').pop();
+  downloadBtn.onclick = () => downloadFile(path);
+  state.previewPath = path;
+
+  const isEditable = EDITABLE_EXTS.includes(ext);
+  forceEditBtn.classList.toggle('hidden', isEditable);
+  if (!isEditable) forceEditBtn.onclick = () => showTextEditor(path, url);
+
+  const modal = document.getElementById('previewModal');
+  modal.classList.remove('hidden');
+  setTimeout(() => modal.classList.remove('opacity-0'), 10);
+
+  if (isEditable) { showTextEditor(path, url); return; }
+
+  if (IMG_EXTS.includes(ext)) {
+    container.innerHTML = `<img src="${url}" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl" style="animation:slideUp 0.3s ease">`;
+    return;
+  }
+  if (VID_EXTS.includes(ext)) {
+    container.innerHTML = `<video src="${url}" controls autoplay class="max-w-full max-h-full rounded-xl shadow-2xl outline-none"></video>`;
+    return;
+  }
+  if (AUD_EXTS.includes(ext)) {
+    container.innerHTML = `
+    <div class="flex flex-col items-center gap-6 text-white">
+      <div class="w-32 h-32 rounded-3xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-2xl" style="animation:float 4s ease-in-out infinite">
+        <span class="material-icons-round text-6xl">music_note</span>
+      </div>
+      <div class="text-lg font-semibold">${escHtml(path.split('/').pop())}</div>
+      <audio src="${url}" controls autoplay class="w-80 outline-none"></audio>
+    </div>`;
+    return;
+  }
+  if (ext === 'pdf') {
+    container.innerHTML = `<iframe src="${url}" class="w-full h-full rounded-xl border-none bg-white" style="min-height:70vh"></iframe>`;
+    return;
+  }
+
+  container.innerHTML = `
+  <div class="flex flex-col items-center text-slate-300 gap-4">
+    <div class="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center">
+      <span class="material-icons-round text-5xl opacity-60">insert_drive_file</span>
+    </div>
+    <p class="text-lg font-medium">此格式不支持直接预览</p>
+    <p class="text-sm text-slate-400">可点击右上角「强制编辑」以文本方式打开</p>
+    <button onclick="downloadFile('${escHtml(path)}')" class="mt-2 px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-medium transition-all">
+      <span class="material-icons-round align-bottom mr-1">download</span>立即下载
+    </button>
+  </div>`;
+}
+
+function showTextEditor(path, url) {
+  const container = document.getElementById('previewContainer');
+  container.innerHTML = `<div class="flex items-center gap-2 text-slate-400"><span class="material-icons-round animate-spin">refresh</span>加载中...</div>`;
+
+  fetch(url + '&raw=true', { headers: { 'Authorization': 'Bearer ' + state.token } })
+    .then(r => { if (!r.ok) throw new Error('加载失败'); return r.text(); })
+    .then(txt => {
+      container.innerHTML = `
+      <div class="w-full h-full bg-[#1e1e2e] rounded-xl shadow-2xl overflow-hidden flex flex-col border border-white/10">
+        <div class="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#15152a] shrink-0">
+          <div class="flex gap-1.5">
+            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+          </div>
+          <span class="text-slate-400 text-xs font-mono">${escHtml(path.split('/').pop())}</span>
+          <div class="flex gap-2">
+            <button id="editToggleBtn" class="px-3 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 rounded-lg text-xs font-medium transition-all border border-indigo-500/20">编辑</button>
+            <button id="saveEditBtn" class="hidden px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-medium transition-all border border-emerald-500/20">保存</button>
+            <button id="cancelEditBtn" class="hidden px-3 py-1 bg-slate-500/20 hover:bg-slate-500/30 text-slate-400 rounded-lg text-xs font-medium transition-all">取消</button>
+          </div>
+        </div>
+        <pre id="previewTextContent" class="text-sm text-slate-300 p-4 overflow-auto flex-1 font-mono whitespace-pre-wrap break-all leading-relaxed">${escHtml(txt)}</pre>
+        <textarea id="editTextarea" class="hidden w-full flex-1 font-mono text-sm p-4 bg-[#1e1e2e] text-slate-200 resize-none focus:outline-none" spellcheck="false"></textarea>
+      </div>`;
+
+      let currentText = txt;
+      const editBtn = document.getElementById('editToggleBtn');
+      const saveBtn = document.getElementById('saveEditBtn');
+      const cancelBtn = document.getElementById('cancelEditBtn');
+      const pre = document.getElementById('previewTextContent');
+      const ta = document.getElementById('editTextarea');
+
+      editBtn.onclick = () => {
+        ta.value = currentText;
+        pre.classList.add('hidden'); ta.classList.remove('hidden');
+        editBtn.classList.add('hidden'); saveBtn.classList.remove('hidden'); cancelBtn.classList.remove('hidden');
+        ta.focus();
+      };
+      cancelBtn.onclick = () => {
+        pre.classList.remove('hidden'); ta.classList.add('hidden');
+        editBtn.classList.remove('hidden'); saveBtn.classList.add('hidden'); cancelBtn.classList.add('hidden');
+      };
+      saveBtn.onclick = async () => {
+        const nc = ta.value;
+        try {
+          const r = await fetch(API_BASE + `/api/file?path=${encodeURIComponent(path)}`, {
+            method: 'PUT', headers: { 'Authorization': 'Bearer ' + state.token }, body: nc
+          });
+          if (!r.ok) throw new Error('保存失败');
+          currentText = nc;
+          pre.textContent = nc;
+          pre.classList.remove('hidden'); ta.classList.add('hidden');
+          editBtn.classList.remove('hidden'); saveBtn.classList.add('hidden'); cancelBtn.classList.add('hidden');
+          showToast('文件已保存', 'success');
+          refreshData();
+        } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
+      };
+    })
+    .catch(() => {
+      container.innerHTML = `<div class="text-slate-400 text-center"><span class="material-icons-round text-4xl mb-3 block">error_outline</span>无法加载文件内容，可能文件过大</div>`;
+    });
+}
+
+window.closePreview = function() {
+  const modal = document.getElementById('previewModal');
+  if (!modal) return;
+  modal.classList.add('opacity-0');
+  setTimeout(() => { modal.classList.add('hidden'); document.getElementById('previewContainer').innerHTML = ''; }, 200);
+  state.previewPath = null;
+};
+
+// ================================================================
+// MODAL
+// ================================================================
+function openModal(id, clearCb = true) {
+  const el = document.getElementById(id);
+  if (clearCb) window._modalCallback = null;
+  if (id === 'newFolderModal' && clearCb) {
+    document.getElementById('inputModalTitle').textContent = '新建文件夹';
+    document.getElementById('inputModalIcon').textContent = 'create_new_folder';
+    document.getElementById('folderNameInput').placeholder = '请输入文件夹名称';
+    document.getElementById('folderNameInput').value = '';
+  }
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('show'), 10);
+  const inp = el.querySelector('input[type="text"]');
+  if (inp) setTimeout(() => inp.focus(), 150);
+}
+
+window.closeModal = function(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('show');
+  setTimeout(() => el.classList.add('hidden'), 200);
+};
+
+function doInputConfirm() {
+  const name = document.getElementById('folderNameInput').value.trim();
+  if (!name) return;
+  if (window._modalCallback) { window._modalCallback(name); return; }
+  const targetPath = state.currentPath ? `${state.currentPath}/${name}` : name;
+  apiRequest('/api/op', { method: 'POST', body: JSON.stringify({ op: 'mkdir', srcPath: targetPath }) })
+    .then(() => { showToast('文件夹已创建', 'success'); closeModal('newFolderModal'); refreshData(); })
+    .catch(e => showToast(e.message, 'error'));
+}
+
+function openNewFileModal() {
+  document.getElementById('inputModalTitle').textContent = '新建文件';
+  document.getElementById('inputModalIcon').textContent = 'note_add';
+  document.getElementById('folderNameInput').placeholder = '请输入文件名（含扩展名）';
+  document.getElementById('folderNameInput').value = '';
+  window._modalCallback = async function(name) {
+    if (!name) return;
+    const targetPath = state.currentPath ? `${state.currentPath}/${name}` : name;
+    try {
+      await apiRequest('/api/op', { method: 'POST', body: JSON.stringify({ op: 'createfile', srcPath: targetPath }) });
+      showToast('文件已创建', 'success');
+      closeModal('newFolderModal');
+      await refreshData();
+    } catch(e) { showToast(e.message, 'error'); }
+  };
+  openModal('newFolderModal', false);
+}
+
+// ================================================================
+// BREADCRUMB
+// ================================================================
+function updateBreadcrumb() {
+  const bc = document.getElementById('globalBreadcrumb');
+  if (state.currentView === 'trash') {
+    bc.innerHTML = `<span class="flex items-center gap-1 text-red-400 font-medium"><span class="material-icons-round text-base">delete</span>回收站</span>`;
+    return;
+  }
+  if (state.currentView === 'shares') {
+    bc.innerHTML = `<span class="flex items-center gap-1 text-emerald-500 font-medium"><span class="material-icons-round text-base">share</span>外链分享</span>`;
+    return;
+  }
+  let html = `<span class="breadcrumb-item flex items-center gap-1 text-slate-500 dark:text-slate-400" data-path=""><span class="material-icons-round text-base">home</span>根目录</span>`;
+  if (state.currentPath) {
+    const parts = state.currentPath.split('/');
+    let acc = '';
+    parts.forEach((p, i) => {
+      acc += (i === 0 ? '' : '/') + p;
+      html += `<span class="material-icons-round text-slate-300 dark:text-slate-600 text-sm">chevron_right</span>`;
+      html += `<span class="breadcrumb-item text-slate-600 dark:text-slate-300 truncate max-w-[100px]" data-path="${escHtml(acc)}">${escHtml(p)}</span>`;
+    });
+  }
+  bc.innerHTML = html;
+  bc.querySelectorAll('.breadcrumb-item').forEach(el => { el.onclick = () => navTo(el.dataset.path); });
+}
+
+// ================================================================
+// SIDEBAR TREE
+// ================================================================
+function renderSidebar() {
+  const c = document.getElementById('folderTreeContainer');
+  c.innerHTML = '';
+  renderTreeNode('', c, 0);
+  if (!Object.keys(state.sidebarTree.children||{}).length && !state.sidebarLoaded.has('')) {
+    c.innerHTML = '<div class="text-xs text-slate-400 px-4 py-2">暂无文件夹</div>';
+  }
+}
+
+function renderTreeNode(path, parentEl, level) {
+  const node = getSidebarNode(path);
+  if (!node || !node.children) return;
+  const keys = Object.keys(node.children).sort();
+  for (const name of keys) {
+    const childPath = path ? `${path}/${name}` : name;
+    const isActive = state.currentPath === childPath && state.currentView === 'files';
+    const expanded = state.sidebarLoaded.has(childPath);
+
+    const div = document.createElement('div');
+    div.className = `flex items-center gap-1.5 py-1.5 rounded-xl cursor-pointer text-xs font-medium transition-all ${isActive ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-darkCard/80'}`;
+    div.style.paddingLeft = (level * 14 + 10) + 'px';
+    div.style.paddingRight = '10px';
+
+    const arrow = document.createElement('span');
+    arrow.className = `material-icons-round text-[14px] text-slate-400 tree-arrow ${expanded ? 'open' : ''}`;
+    arrow.textContent = 'chevron_right';
+    arrow.onclick = e => { e.stopPropagation(); toggleSidebarFolder(childPath); };
+    div.appendChild(arrow);
+
+    const icon = document.createElement('span');
+    icon.className = 'material-icons-round text-[16px] shrink-0';
+    icon.style.color = isActive ? '#6366F1' : '#F9AB00';
+    icon.textContent = expanded ? 'folder_open' : 'folder';
+    div.appendChild(icon);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'truncate flex-1';
+    nameSpan.textContent = name;
+    div.appendChild(nameSpan);
+
+    div.onclick = () => navTo(childPath);
+    parentEl.appendChild(div);
+
+    if (expanded) renderTreeNode(childPath, parentEl, level + 1);
+  }
+}
+
+function getSidebarNode(path) {
+  if (!path) return state.sidebarTree;
+  const parts = path.split('/').filter(Boolean);
+  let node = state.sidebarTree;
+  for (const p of parts) {
+    if (!node.children || !node.children[p]) return null;
+    node = node.children[p];
+  }
+  return node;
+}
+
+async function loadSidebarChildren(path) {
+  try {
+    const result = await apiRequest(`/api/dir?path=${encodeURIComponent(path)}`);
+    const folders = result.folders || [];
+    const node = getSidebarNode(path);
+    if (!node) return;
+    node.children = node.children || {};
+    folders.forEach(name => { node.children[name] = node.children[name] || { children: {} }; });
+    state.sidebarLoaded.add(path);
+    renderSidebar();
+  } catch(e) {}
+}
+
+async function toggleSidebarFolder(path) {
+  if (state.sidebarLoaded.has(path)) {
+    state.sidebarLoaded.delete(path);
+    renderSidebar();
+  } else {
+    await loadSidebarChildren(path);
+  }
+}
+
+// ================================================================
+// THEME
+// ================================================================
+function toggleTheme() {
+  const html = document.documentElement;
+  const dark = html.classList.toggle('dark');
+  localStorage.setItem('r2_theme', dark ? 'dark' : 'light');
+  document.getElementById('themeIcon').textContent = dark ? 'light_mode' : 'dark_mode';
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('r2_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) {
+    document.documentElement.classList.add('dark');
+    document.getElementById('themeIcon').textContent = 'light_mode';
+  }
+}
+
+// ================================================================
+// UPLOAD SYSTEM
+// ================================================================
+function toggleUploadTaskCenter() {
+  document.getElementById('uploadTaskCenter').classList.toggle('show');
+}
+
+function handleFilesSelect(e) {
+  const files = e.target.files;
+  if (!files.length) { e.target.value = ''; return; }
+  startUploadTasks(files);
+  e.target.value = '';
+}
+
+async function uploadSingleFile(task) {
+  const { file, path, id } = task;
+  const totalSize = file.size;
+  const CHUNK_SIZE = 5 * 1024 * 1024;
+
+  const updateUI = (pct, status, done = false, error = false) => {
+    const barEl = document.getElementById(`tb-${id}`);
+    const pctEl = document.getElementById(`tp-${id}`);
+    const stEl = document.getElementById(`ts-${id}`);
+    if (barEl) {
+      barEl.style.width = pct + '%';
+      if (done) { barEl.style.background = 'linear-gradient(90deg, #10B981, #06D6A0)'; }
+      if (error) { barEl.style.background = '#EF4444'; }
+    }
+    if (pctEl) pctEl.textContent = done ? '✓' : (error ? '✗' : pct + '%');
+    if (stEl) stEl.textContent = status;
+  };
+
+  const initData = await apiRequest('/api/upload/init', {
+    method: 'POST',
+    body: JSON.stringify({ path, totalSize, overwrite: false })
+  });
+
+  if (initData.done) { updateUI(100, '已完成', true); return; }
+
+  const { uploadId, totalChunks } = initData;
+  const check = await apiRequest('/api/upload/check', { method: 'POST', body: JSON.stringify({ uploadId }) });
+  const uploadedSet = new Set(check.uploadedChunks || []);
+  let uploadedCount = uploadedSet.size;
+
+  for (let i = 0; i < totalChunks; i++) {
+    if (uploadedSet.has(i)) continue;
+    const chunk = file.slice(i * CHUNK_SIZE, Math.min((i+1) * CHUNK_SIZE, totalSize));
+    const buffer = await chunk.arrayBuffer();
+
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const res = await fetch(API_BASE + `/api/upload/chunk?uploadId=${encodeURIComponent(uploadId)}&chunkIndex=${i}`, {
+          method: 'PUT', headers: { 'Authorization': `Bearer ${state.token}` }, body: buffer
+        });
+        if (!res.ok) throw new Error(await res.text() || '上传失败');
+        break;
+      } catch(err) {
+        retries--;
+        if (retries === 0) throw err;
+        await new Promise(r => setTimeout(r, 600));
+      }
+    }
+
+    uploadedCount++;
+    const pct = Math.round((uploadedCount / totalChunks) * 100);
+    updateUI(pct, `上传中 ${uploadedCount}/${totalChunks}`);
+  }
+
+  await apiRequest('/api/upload/complete', { method: 'POST', body: JSON.stringify({ uploadId }) });
+  updateUI(100, '已完成', true);
+}
+
+function startUploadTasks(files) {
+  const fileArray = Array.from(files).filter(f => f instanceof File);
+  if (!fileArray.length) { showToast('未选择有效文件', 'warn'); return; }
+
+  const uploadPath = state.currentPath;
+  const tasks = fileArray.map(file => {
+    const rel = file._relativePath || file.webkitRelativePath || file.name;
+    const path = uploadPath ? `${uploadPath}/${rel}` : rel;
+    return { file, path, name: rel, size: file.size, id: state.taskIdCounter++ };
+  });
+
+  const list = document.getElementById('uploadTaskList');
+  const emptyMsg = list.querySelector('.text-center,.flex-col');
+  if (emptyMsg && emptyMsg.classList.contains('flex-col')) emptyMsg.remove();
+
+  tasks.forEach(task => {
+    const div = document.createElement('div');
+    div.className = 'upload-task-item';
+    div.id = `task-${task.id}`;
+    div.innerHTML = `
+      <div class="flex justify-between items-start mb-2">
+        <span class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate w-4/5" title="${escHtml(task.name)}">${escHtml(task.name)}</span>
+        <span class="text-xs text-indigo-500 font-mono" id="tp-${task.id}">0%</span>
+      </div>
+      <div class="w-full bg-slate-200 dark:bg-darkBorder rounded-full h-1.5 overflow-hidden">
+        <div class="progress-bar-inner h-1.5 rounded-full" id="tb-${task.id}" style="width:0%"></div>
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+        <span id="ts-${task.id}">等待中...</span>
+        <span class="ml-auto">${formatSize(task.size)}</span>
+      </div>`;
+    list.appendChild(div);
+  });
+
+  document.getElementById('uploadTaskCenter').classList.add('show');
+  document.getElementById('uploadTaskBadge').classList.remove('hidden');
+
+  const CONCURRENCY = 3;
+  async function runWithConcurrency(taskList) {
+    const allPromises = [];
+    const executing = new Set();
+    for (const task of taskList) {
+      const p = uploadSingleFile(task).catch(err => {
+        const st = document.getElementById(`ts-${task.id}`);
+        const bar = document.getElementById(`tb-${task.id}`);
+        const pct = document.getElementById(`tp-${task.id}`);
+        if (st) st.textContent = '失败: ' + (err.message || '未知错误');
+        if (pct) pct.textContent = '✗';
+        if (bar) { bar.style.background = '#EF4444'; bar.style.width = '100%'; }
+      });
+      let w; w = p.then(() => executing.delete(w), () => executing.delete(w));
+      executing.add(w); allPromises.push(p);
+      if (executing.size >= CONCURRENCY) await Promise.race(executing);
+    }
+    return Promise.allSettled(allPromises);
+  }
+
+  runWithConcurrency(tasks).then(() => {
+    setTimeout(() => {
+      state.currentPath = uploadPath;
+      refreshData(); renderSidebar();
+      showToast('所有上传任务已完成', 'success');
+      document.getElementById('uploadTaskBadge').classList.add('hidden');
+      setTimeout(() => { refreshData(); renderSidebar(); }, 1200);
+    }, 1000);
+  });
+}
+
+// ================================================================
+// DRAG & DROP
+// ================================================================
+function initDragDrop() {
+  const dz = document.getElementById('globalDropzone');
+  let dragCounter = 0;
+  document.addEventListener('dragenter', e => { e.preventDefault(); if (++dragCounter === 1) dz.classList.add('active'); });
+  document.addEventListener('dragleave', e => { e.preventDefault(); if (--dragCounter === 0) dz.classList.remove('active'); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', async e => {
+    e.preventDefault(); dragCounter = 0; dz.classList.remove('active');
+    const items = e.dataTransfer.items;
+    if (!items || !items.length) return;
+
+    const filesToUpload = [], emptyDirs = [];
+
+    async function traverseEntry(entry, currentPath = '') {
+      try {
+        if (entry.isFile) {
+          const file = await new Promise(r => entry.file(r));
+          file._relativePath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+          filesToUpload.push(file);
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const entries = await new Promise((res, rej) => {
+            const all = [];
+            const read = () => reader.readEntries(batch => {
+              if (!batch.length) res(all);
+              else { all.push(...batch); read(); }
+            }, rej);
+            read();
+          });
+          if (!entries.length) {
+            emptyDirs.push(currentPath ? `${currentPath}/${entry.name}` : entry.name);
+          } else {
+            const subPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+            for (const sub of entries) await traverseEntry(sub, subPath);
+          }
+        }
+      } catch(err) { console.warn('Skip:', entry.name, err); }
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const entry = items[i].webkitGetAsEntry?.();
+        if (entry) await traverseEntry(entry, '');
+        else { const f = items[i].getAsFile(); if (f) { f._relativePath = f.name; filesToUpload.push(f); } }
+      } catch(err) { console.warn('Drop item error:', err); }
+    }
+
+    if (filesToUpload.length) startUploadTasks(filesToUpload);
+    for (const dirPath of emptyDirs) {
+      const tp = state.currentPath ? `${state.currentPath}/${dirPath}` : dirPath;
+      try { await apiRequest('/api/op', { method: 'POST', body: JSON.stringify({ op: 'mkdir', srcPath: tp }) }); showToast(`已创建空文件夹: ${dirPath}`, 'success'); }
+      catch(err) { showToast(`创建文件夹失败: ${dirPath}`, 'error'); }
+    }
+    if (emptyDirs.length) refreshData();
+    if (!filesToUpload.length && !emptyDirs.length) showToast('未检测到有效文件或文件夹', 'warn');
+  });
+}
+
+// ================================================================
+// INIT
+// ================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+  initDragDrop();
+
+  if (state.token) {
+    document.getElementById('loginWrap').classList.add('opacity-0', 'pointer-events-none');
+    loadServerConfig().then(() => refreshData()).catch(() => doLogout());
+  }
+
+  // Search
+  const si = document.getElementById('searchInput');
+  if (si) {
+    si.addEventListener('input', debounce(async function() {
+      const q = this.value.trim();
+      if (q.length < 2) { if (state.currentView === 'files') refreshData(); return; }
+      try {
+        const result = await apiRequest(`/api/search?q=${encodeURIComponent(q)}`);
+        state.currentList = (result.files || []).map(f => ({ name: f.name, path: f.path, isFolder: false, size: f.size, uploaded: f.uploaded }));
+        renderCurrentView();
+      } catch(err) { showToast(err.message, 'error'); }
+    }, 300));
+  }
+
+  // Mobile long press
+  let lpt = null;
+  document.addEventListener('touchstart', e => {
+    const target = e.target.closest('.file-card, tbody tr');
+    if (!target) return;
+    lpt = setTimeout(() => { e.preventDefault(); showContextMenu(e.changedTouches[0], target.dataset.key, target.dataset.isdir === 'true'); }, 500);
+  }, { passive: false });
+  document.addEventListener('touchend', () => clearTimeout(lpt));
+  document.addEventListener('touchmove', () => clearTimeout(lpt));
+
+  // Close menus on click outside
+  document.addEventListener('click', e => {
+    const ctx = document.getElementById('contextMenu');
+    if (!ctx.contains(e.target)) ctx.classList.remove('show');
+    if (window.innerWidth < 768) {
+      const aside = document.querySelector('aside');
+      if (aside.classList.contains('open') && !aside.contains(e.target) && !e.target.closest('#menuToggle')) {
+        aside.classList.remove('open');
+      }
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const pm = document.getElementById('previewModal');
+      if (!pm.classList.contains('hidden')) { closePreview(); return; }
+      const ctx = document.getElementById('contextMenu');
+      if (ctx.classList.contains('show')) { ctx.classList.remove('show'); return; }
+      clearSelection();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a' && state.currentView !== 'trash') {
+      e.preventDefault();
+      state.currentList.forEach(item => state.selectedFiles.add(getSelectKey(item)));
+      renderCurrentView(); updateActionButtons();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && state.selectedFiles.size && state.currentView === 'files') {
+      e.preventDefault(); setClipboard('copy');
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'x' && state.selectedFiles.size && state.currentView === 'files') {
+      e.preventDefault(); setClipboard('cut');
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && state.clipboard && state.currentView === 'files') {
+      e.preventDefault(); doPaste();
+    }
+    if (e.key === 'Delete' && state.selectedFiles.size && state.currentView === 'files') {
+      doBatch('delete');
+    }
+    if (e.key === 'F2' && state.selectedFiles.size === 1 && state.currentView === 'files') {
+      doRename();
+    }
+  });
+});
+</script>
+</body>
+</html>
